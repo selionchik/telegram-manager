@@ -1,0 +1,9 @@
+# QR-авторизация (новый способ)
+php artisan telegram:auth account1 --qr
+
+# Обычная авторизация с кодом
+php artisan telegram:auth account1
+php artisan telegram:auth account1 --code=12345
+
+# С двухфакторкой
+php artisan telegram:auth account1 --qr --password=yourpassword

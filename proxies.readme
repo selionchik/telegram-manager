@@ -1,0 +1,11 @@
+# Показать статистику прокси
+php artisan telegram:check-proxies
+
+# Проверить конкретный прокси
+php artisan telegram:check-proxies --id=1
+
+# Перепроверить все прокси
+php artisan telegram:check-proxies --all
+
+# Собрать новые прокси
+php artisan telegram:collect-proxies
