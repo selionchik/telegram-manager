@@ -61,7 +61,7 @@ $(function() {
         let btn = $(this);
         
         $.ajax({
-            url: '/api/chats/' + chatId + '/include',
+            url: '/telegram/api/chats/' + chatId + '/include',
             method: 'POST',
             data: {
                 _token: '{{ csrf_token() }}'

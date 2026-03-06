@@ -3,20 +3,23 @@
 namespace App\Http\Controllers\Telegram;
 
 use App\Http\Controllers\Controller;
+use App\Services\Telegram\GatewayService;
 use App\Models\TelegramChat;
-use App\Models\TelegramPost;
-use App\Services\Telegram\TelegramParserService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PostController extends Controller
 {
-    protected TelegramParserService $parser;
+    protected GatewayService $gateway;
 
-    public function __construct(TelegramParserService $parser)
+    public function __construct(GatewayService $gateway)
     {
-        $this->parser = $parser;
+        $this->gateway = $gateway;
     }
 
+    /**
+     * Форма создания поста
+     */
     public function create(int $chatId)
     {
         $chat = TelegramChat::findOrFail($chatId);
@@ -28,37 +31,26 @@ class PostController extends Controller
         return view('telegram.posts.create', ['chat' => $chat]);
     }
 
+    /**
+     * Сохранение поста (заглушка)
+     */
     public function store(Request $request, int $chatId)
     {
-        $validated = $request->validate([
-            'content' => 'required|string',
-            'media' => 'nullable|array',
+        // TODO: добавить создание поста в Gateway
+        Log::info('📝 Создание поста (заглушка)', [
+            'chat_id' => $chatId,
+            'content' => $request->content
         ]);
 
-        $chat = TelegramChat::findOrFail($chatId);
-
-        $result = $this->parser->createPost($chat, $validated['content']);
-
-        if ($result) {
-            return redirect()->route('telegram.chat.show', $chatId)
-                ->with('success', 'Пост создан');
-        }
-
-        return redirect()->back()->with('error', 'Ошибка создания поста');
+        return redirect()->route('telegram.chat.show', $chatId)
+            ->with('info', 'Создание постов временно недоступно');
     }
 
+    /**
+     * Форма редактирования поста (заглушка)
+     */
     public function edit(int $chatId, int $messageId)
     {
-        $post = TelegramPost::where('chat_id', $chatId)
-            ->where('message_id', $messageId)
-            ->firstOrFail();
-
-        return view('telegram.posts.edit', ['post' => $post]);
-    }
-
-    public function update(Request $request, int $chatId, int $messageId)
-    {
-        // TODO: реализовать редактирование поста через API
-        return redirect()->back()->with('info', 'Функция в разработке');
+        return redirect()->back()->with('info', 'Редактирование временно недоступно');
     }
 }

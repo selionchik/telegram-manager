@@ -65,7 +65,7 @@ $(function() {
         let btn = $(this);
         
         $.ajax({
-            url: '/api/comments/' + commentId + '/processed',
+            url: '/telegram/api/comments/' + commentId + '/processed',
             method: 'POST',
             data: {
                 _token: '{{ csrf_token() }}'

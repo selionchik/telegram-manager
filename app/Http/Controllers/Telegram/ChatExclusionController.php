@@ -3,22 +3,14 @@
 namespace App\Http\Controllers\Telegram;
 
 use App\Http\Controllers\Controller;
-use App\Services\Telegram\ChatExclusionService;
 use App\Models\TelegramChat;
 use App\Models\TelegramUserComment;
 use Illuminate\Http\Request;
 
 class ChatExclusionController extends Controller
 {
-    protected ChatExclusionService $exclusionService;
-
-    public function __construct(ChatExclusionService $exclusionService)
-    {
-        $this->exclusionService = $exclusionService;
-    }
-
     /**
-     * Исключить чат
+     * Исключить чат из парсинга
      */
     public function exclude(Request $request, int $chatId)
     {
@@ -26,25 +18,29 @@ class ChatExclusionController extends Controller
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $result = $this->exclusionService->excludeChat($chatId, $validated['reason'] ?? null);
-
-        if (!$result) {
+        $chat = TelegramChat::find($chatId);
+        
+        if (!$chat) {
             return response()->json(['error' => 'Чат не найден'], 404);
         }
+
+        $chat->exclude($validated['reason'] ?? null);
 
         return response()->json(['success' => true]);
     }
 
     /**
-     * Вернуть чат
+     * Вернуть чат в парсинг
      */
     public function include(int $chatId)
     {
-        $result = $this->exclusionService->includeChat($chatId);
-
-        if (!$result) {
+        $chat = TelegramChat::find($chatId);
+        
+        if (!$chat) {
             return response()->json(['error' => 'Чат не найден'], 404);
         }
+
+        $chat->include();
 
         return response()->json(['success' => true]);
     }
@@ -56,7 +52,12 @@ class ChatExclusionController extends Controller
     {
         $accountId = $request->get('account_id');
         
-        $chats = $this->exclusionService->getExcludedChats($accountId);
+        $query = TelegramChat::excluded();
+        if ($accountId) {
+            $query->where('account_id', $accountId);
+        }
+
+        $chats = $query->orderBy('excluded_at', 'desc')->get();
 
         return response()->json([
             'data' => $chats,
@@ -65,40 +66,69 @@ class ChatExclusionController extends Controller
     }
 
     /**
-     * Получить список активных чатов
+     * Страница исключённых чатов
      */
-    public function active(Request $request)
+    public function index(Request $request)
     {
         $accountId = $request->get('account_id');
-        $sort = $request->get('sort', 'default');
         
-        $chats = $this->exclusionService->getActiveChats($accountId, $sort);
+        $chats = TelegramChat::excluded()
+            ->when($accountId, fn($q) => $q->where('account_id', $accountId))
+            ->orderBy('excluded_at', 'desc')
+            ->paginate(50);
 
-        return response()->json([
-            'data' => $chats,
-            'count' => $chats->count()
+        return view('telegram.excluded.index', [
+            'chats' => $chats
         ]);
     }
 
     /**
-     * Массовое исключение
+     * Переключить статус исключения
      */
-    public function excludeMultiple(Request $request)
+    public function toggle(Request $request, int $chatId)
     {
-        $validated = $request->validate([
-            'chat_ids' => 'required|array',
-            'chat_ids.*' => 'integer',
-            'reason' => 'nullable|string',
-        ]);
+        $chat = TelegramChat::find($chatId);
+        
+        if (!$chat) {
+            return redirect()->back()->with('error', 'Чат не найден');
+        }
 
-        $results = $this->exclusionService->excludeMultiple(
-            $validated['chat_ids'],
-            $validated['reason'] ?? null
-        );
+        if ($chat->is_excluded) {
+            $chat->include();
+            $message = 'Чат возвращён в парсинг';
+        } else {
+            $chat->exclude($request->get('reason'));
+            $message = 'Чат исключён из парсинга';
+        }
 
-        return response()->json([
-            'success' => true,
-            'results' => $results
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Получить необработанные комментарии (API)
+     */
+    public function unprocessedComments(Request $request)
+    {
+        $comments = TelegramUserComment::with(['chat', 'post'])
+            ->unprocessed()
+            ->orderBy('date', 'desc')
+            ->paginate(50);
+
+        return response()->json($comments);
+    }
+
+    /**
+     * Страница необработанных комментариев
+     */
+    public function unprocessedPage(Request $request)
+    {
+        $comments = TelegramUserComment::with(['chat', 'post'])
+            ->unprocessed()
+            ->orderBy('date', 'desc')
+            ->paginate(50);
+
+        return view('telegram.comments.unprocessed', [
+            'comments' => $comments
         ]);
     }
 
@@ -117,72 +147,4 @@ class ChatExclusionController extends Controller
 
         return response()->json(['success' => true]);
     }
-
-    /**
-     * Получить необработанные комментарии
-     */
-    public function unprocessedComments(Request $request)
-    {
-        $comments = TelegramUserComment::with(['chat', 'post'])
-            ->unprocessed()
-            ->orderBy('date', 'desc')
-            ->paginate(50);
-
-        return response()->json($comments);
-    }
-
-
-
-
-    /**
-     * Страница исключённых чатов
-     */
-    public function index(Request $request)
-    {
-        $accountId = $request->get('account_id');
-        
-        $chats = $this->exclusionService->getExcludedChats($accountId);
-
-        return view('telegram.excluded.index', [
-            'chats' => $chats
-        ]);
-    }
-
-    /**
-     * Переключить статус исключения (веб)
-     */
-    public function toggle(Request $request, int $chatId)
-    {
-        $chat = TelegramChat::find($chatId);
-        
-        if (!$chat) {
-            return redirect()->back()->with('error', 'Чат не найден');
-        }
-
-        if ($chat->is_excluded) {
-            $this->exclusionService->includeChat($chatId);
-            $message = 'Чат возвращён в парсинг';
-        } else {
-            $this->exclusionService->excludeChat($chatId, $request->get('reason'));
-            $message = 'Чат исключён из парсинга';
-        }
-
-        return redirect()->back()->with('success', $message);
-    }
-
-    /**
-     * Страница необработанных комментариев
-     */
-    public function unprocessedPage(Request $request)
-    {
-        $comments = TelegramUserComment::with(['chat', 'post'])
-            ->unprocessed()
-            ->orderBy('date', 'desc')
-            ->paginate(50);
-
-        return view('telegram.comments.unprocessed', [
-            'comments' => $comments
-        ]);
-    }
-    
 }

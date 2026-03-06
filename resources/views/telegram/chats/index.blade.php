@@ -50,7 +50,7 @@
                                         <h6 class="mb-0 text-truncate">{{ $chat->title }}</h6>
                                         @if($chat->unread_count > 0)
                                             <span class="badge bg-primary rounded-pill ms-2">
-                                                {{ $chat->unread_count }}
+                                                {{ $chat->unread_count > 99 ? '99+' : $chat->unread_count }}
                                             </span>
                                         @endif
                                     </div>
@@ -58,7 +58,7 @@
                                         @if($chat->last_message)
                                             {{ $chat->last_message }}
                                         @else
-                                            Нет сообщений
+                                            <span class="text-muted">Нет сообщений</span>
                                         @endif
                                     </small>
                                     <small class="text-muted">
@@ -134,7 +134,7 @@ $(function() {
         let excluded = btn.data('excluded') === 'true';
         
         $.ajax({
-            url: '/api/chats/' + chatId + (excluded ? '/include' : '/exclude'),
+            url: '/telegram/api/chats/' + chatId + (excluded ? '/include' : '/exclude'),
             method: 'POST',
             data: {
                 _token: '{{ csrf_token() }}',

@@ -26,17 +26,19 @@ class TelegramChat extends Model
         'username',
         'about',
         'last_message_id',
+        'last_message',
+        'last_message_date',
         'last_scanned_message_id',
+        'last_parsed_message_id',
         'unread_count',
         'participants_count',
         'photo',
         'is_pinned',
-        'last_message_date',
-        'last_scanned_at',
         'is_excluded',
         'excluded_at',
         'excluded_reason',
         'exclude_count',
+        'last_scanned_at',
     ];
 
     protected $casts = [
@@ -45,117 +47,63 @@ class TelegramChat extends Model
         'access_hash' => 'integer',
         'last_message_id' => 'integer',
         'last_scanned_message_id' => 'integer',
+        'last_parsed_message_id' => 'integer',
         'unread_count' => 'integer',
         'participants_count' => 'integer',
+        'last_message_date' => 'datetime',
+        'excluded_at' => 'datetime',
+        'last_scanned_at' => 'datetime',
         'photo' => 'array',
         'is_pinned' => 'boolean',
-        'last_message_date' => 'datetime',
-        'last_scanned_at' => 'datetime',
         'is_excluded' => 'boolean',
-        'excluded_at' => 'datetime',
         'exclude_count' => 'integer',
     ];
 
-    /**
-     * Аккаунт, которому принадлежит чат
-     */
     public function account(): BelongsTo
     {
         return $this->belongsTo(TelegramAccount::class, 'account_id');
     }
 
-    /**
-     * Сообщения в чате
-     */
     public function messages(): HasMany
     {
         return $this->hasMany(TelegramMessage::class, 'chat_id', 'id');
     }
 
-    /**
-     * Посты в чате (для каналов)
-     */
     public function posts(): HasMany
     {
         return $this->hasMany(TelegramPost::class, 'chat_id', 'id');
     }
 
-    /**
-     * Комментарии пользователей из этого чата
-     */
     public function userComments(): HasMany
     {
         return $this->hasMany(TelegramUserComment::class, 'chat_id', 'id');
     }
 
-    /**
-     * Получить peer для MadelineProto
-     */
-    public function getPeer(): ?array
-    {
-        return match ($this->type) {
-            'private' => [
-                '_' => 'inputPeerUser',
-                'user_id' => $this->id,
-                'access_hash' => $this->access_hash ?? 0,
-            ],
-            'group' => [
-                '_' => 'inputPeerChat',
-                'chat_id' => $this->id,
-            ],
-            'channel', 'supergroup' => [
-                '_' => 'inputPeerChannel',
-                'channel_id' => $this->id,
-                'access_hash' => $this->access_hash ?? 0,
-            ],
-            default => null,
-        };
-    }
-
-    /**
-     * Является ли чат каналом
-     */
     public function isChannel(): bool
     {
         return in_array($this->type, ['channel', 'supergroup']);
     }
 
-    /**
-     * Является ли чат личным
-     */
     public function isPrivate(): bool
     {
         return $this->type === 'private';
     }
 
-    /**
-     * Является ли чат группой
-     */
     public function isGroup(): bool
     {
         return $this->type === 'group';
     }
 
-    /**
-     * Обновить непрочитанные сообщения
-     */
-    public function updateUnreadCount(int $count): void
+    public function exclude(?string $reason = null): void
     {
-        $this->update(['unread_count' => $count]);
+        $this->update([
+            'is_excluded' => true,
+            'excluded_at' => now(),
+            'excluded_reason' => $reason,
+            'exclude_count' => $this->exclude_count + 1,
+        ]);
     }
 
-/**
- * Исключить чат из парсинга
- */
-public function exclude(?string $reason = null): void  // Добавлен ? перед string
-{
-    $this->update([
-        'is_excluded' => true,
-        'excluded_at' => now(),
-        'excluded_reason' => $reason,
-        'exclude_count' => $this->exclude_count + 1,
-    ]);
-}
     public function include(): void
     {
         $this->update([

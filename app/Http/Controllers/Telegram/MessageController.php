@@ -3,38 +3,38 @@
 namespace App\Http\Controllers\Telegram;
 
 use App\Http\Controllers\Controller;
+use App\Services\Telegram\GatewayService;
 use App\Models\TelegramChat;
-use App\Services\Telegram\TelegramParserService;
+use App\Models\TelegramMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class MessageController extends Controller
 {
-    protected TelegramParserService $parser;
+    protected GatewayService $gateway;
 
-    public function __construct(TelegramParserService $parser)
+    public function __construct(GatewayService $gateway)
     {
-        $this->parser = $parser;
+        $this->gateway = $gateway;
     }
 
+    /**
+     * Отправка сообщения (заглушка - Gateway пока не умеет)
+     */
     public function send(Request $request, int $chatId)
     {
-        $validated = $request->validate([
+        $request->validate([
             'message' => 'required|string',
             'reply_to' => 'nullable|integer',
         ]);
 
-        $chat = TelegramChat::findOrFail($chatId);
+        // TODO: добавить отправку в Gateway
+        Log::info('📤 Отправка сообщения (заглушка)', [
+            'chat_id' => $chatId,
+            'message' => $request->message,
+            'reply_to' => $request->reply_to
+        ]);
 
-        $result = $this->parser->sendMessage(
-            $chat,
-            $validated['message'],
-            $validated['reply_to'] ?? null
-        );
-
-        if ($result) {
-            return redirect()->back()->with('success', 'Сообщение отправлено');
-        }
-
-        return redirect()->back()->with('error', 'Ошибка отправки');
+        return redirect()->back()->with('info', 'Отправка сообщений временно недоступна');
     }
 }

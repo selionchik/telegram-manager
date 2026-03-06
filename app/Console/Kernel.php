@@ -15,15 +15,19 @@ class Kernel extends ConsoleKernel
         Commands\Telegram\TelegramExclude::class,
         Commands\Telegram\TelegramInclude::class,
         Commands\Telegram\CollectProxies::class,
+        Commands\Telegram\SyncTelegram::class,
+        Commands\Telegram\TelegramParse::class,
+        Commands\Telegram\CheckProxies::class,
+        Commands\Telegram\CleanupFiles::class,        
     ];
 
 protected function schedule(Schedule $schedule)
 {
-//    Парсинг с таймаутом 4 минуты
-    $schedule->command('telegram:parse --account=account1 --timeout=240')
-        ->everyFiveMinutes()
-        ->withoutOverlapping()
-        ->runInBackground();
+        // Синхронизация чатов каждый час
+        $schedule->command('telegram:sync')
+            ->hourly()
+            ->withoutOverlapping()
+            ->runInBackground();
     
     // // Воркер для очередей
     // $schedule->command('queue:work --queue=downloads --max-time=60 --stop-when-empty')
