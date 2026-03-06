@@ -66,44 +66,6 @@ class TelegramMessage extends Model
         return Storage::url($this->downloaded_file);
     }
 
-    public function getMediaTypeAttribute(): string
-    {
-        $mediaInfo = $this->media_info ? json_decode($this->media_info, true) : null;
-
-        if (!$mediaInfo) {
-            return 'unknown';
-        }
-
-        if (isset($mediaInfo['photo'])) {
-            return 'photo';
-        }
-
-        if (isset($mediaInfo['video'])) {
-            return 'video';
-        }
-
-        if (isset($mediaInfo['audio'])) {
-            return 'audio';
-        }
-
-        if (isset($mediaInfo['document'])) {
-            $doc = $mediaInfo['document'];
-            if (isset($doc['mime_type'])) {
-                if (str_contains($doc['mime_type'], 'video')) {
-                    return 'video';
-                }
-                if (str_contains($doc['mime_type'], 'audio')) {
-                    return 'audio';
-                }
-                if (str_contains($doc['mime_type'], 'image')) {
-                    return 'photo';
-                }
-            }
-            return 'document';
-        }
-
-        return 'unknown';
-    }
 
     public function getMediaIconAttribute(): string
     {

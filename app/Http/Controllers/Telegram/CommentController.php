@@ -9,15 +9,14 @@ use Illuminate\Http\Request;
 class CommentController extends Controller
 {
     /**
-     * Получить количество необработанных комментариев
+     * Отметить комментарий как обработанный
      */
-    public function unprocessedCount()
+    public function markProcessed(Request $request, int $commentId)
     {
-        $count = TelegramUserComment::unprocessed()->count();
+        $comment = TelegramUserComment::findOrFail($commentId);
+        $comment->markAsProcessed(auth()->id());
         
-        return response()->json([
-            'count' => $count
-        ]);
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -25,27 +24,22 @@ class CommentController extends Controller
      */
     public function unprocessed(Request $request)
     {
-        $comments = TelegramUserComment::with(['chat', 'post'])
+        $comments = TelegramUserComment::with(['chat'])
             ->unprocessed()
             ->orderBy('date', 'desc')
             ->paginate(50);
 
-        return response()->json($comments);
+        return view('telegram.comments.unprocessed', [
+            'comments' => $comments
+        ]);
     }
 
     /**
-     * Отметить комментарий как обработанный
+     * API для получения количества необработанных
      */
-    public function markProcessed(Request $request, int $commentId)
+    public function unprocessedCount()
     {
-        $comment = TelegramUserComment::find($commentId);
-        
-        if (!$comment) {
-            return response()->json(['error' => 'Комментарий не найден'], 404);
-        }
-
-        $comment->markAsProcessed(auth()->id());
-
-        return response()->json(['success' => true]);
+        $count = TelegramUserComment::unprocessed()->count();
+        return response()->json(['count' => $count]);
     }
 }

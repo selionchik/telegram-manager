@@ -27,45 +27,41 @@ class FileDownloadController extends Controller
             'message_id' => $messageId
         ]);
 
-        $message = TelegramMessage::where('chat_id', $chatId)
-            ->where('message_id', $messageId)
-            ->first();
+        // Gateway теперь сам отдаёт файл, мы просто проксируем
+        $gatewayUrl = config('telegram.gateway.url') . "/download/{$chatId}/{$messageId}";
 
-        if (!$message) {
-            Log::error('❌ Сообщение не найдено в БД', [
-                'chat_id' => $chatId,
-                'message_id' => $messageId
-            ]);
-            return response()->json(['error' => 'Message not found in DB'], 404);
-        }
-
-        $message->update(['file_url_clicked' => true]);
-
-        $result = $this->gateway->downloadFile($chatId, $messageId);
-
-        if (($result['status'] ?? '') === 'ok') {
-            $message->update([
-                'downloaded_file' => $result['file'],
-                'file_downloaded_at' => now(),
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'url' => 'http://4af690bcc2b8.vps.myjino.ru' . $result['web_url'],
-                'type' => $this->guessType($result['web_url']),
-                'cached' => false
-            ]);
-        }
-
-        Log::error('❌ Ошибка скачивания через Gateway', [
-            'chat_id' => $chatId,
-            'message_id' => $messageId,
-            'error' => $result['error'] ?? 'Unknown error'
+        // Создаём HTTP-клиент с streaming
+        $client = new \GuzzleHttp\Client([
+            'stream' => true,  // важно!
+            'headers' => [
+                'Authorization' => 'Bearer ' . config('telegram.gateway.token')
+            ]
         ]);
 
-        return response()->json([
-            'error' => $result['error'] ?? 'Download failed'
-        ], 500);
+        try {
+            $response = $client->get($gatewayUrl);
+
+            // Проксируем ответ клиенту
+            return response()->stream(
+                function () use ($response) {
+                    $body = $response->getBody();
+                    while (!$body->eof()) {
+                        echo $body->read(8192);  // 8KB чанки
+                        ob_flush();
+                        flush();
+                    }
+                },
+                $response->getStatusCode(),
+                [
+                    'Content-Type' => $response->getHeaderLine('Content-Type'),
+                    'Content-Disposition' => $response->getHeaderLine('Content-Disposition'),
+                    'Cache-Control' => 'no-cache',
+                ]
+            );
+        } catch (\Exception $e) {
+            Log::error('Gateway download error', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Download failed'], 500);
+        }
     }
 
     /**

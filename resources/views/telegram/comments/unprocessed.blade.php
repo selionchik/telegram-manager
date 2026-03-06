@@ -1,6 +1,6 @@
 @extends('telegram.layouts.app')
 
-@section('title', '- Новые комментарии')
+@section('title', '- Необработанные комментарии')
 
 @section('content')
 <div class="card shadow-sm">

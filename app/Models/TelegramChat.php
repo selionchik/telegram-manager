@@ -12,7 +12,6 @@ class TelegramChat extends Model
     use HasFactory;
 
     protected $table = 'telegram_chats';
-
     protected $primaryKey = 'id';
     public $incrementing = false;
     protected $keyType = 'integer';
@@ -21,44 +20,36 @@ class TelegramChat extends Model
         'id',
         'account_id',
         'type',
-        'access_hash',
         'title',
         'username',
-        'about',
+        'photo',
         'last_message_id',
         'last_message',
         'last_message_date',
-        'last_scanned_message_id',
-        'last_parsed_message_id',
         'unread_count',
         'participants_count',
-        'photo',
-        'is_pinned',
+        'last_read_message_id',
         'is_excluded',
         'excluded_at',
         'excluded_reason',
         'exclude_count',
-        'last_scanned_at',
     ];
 
     protected $casts = [
         'id' => 'integer',
         'account_id' => 'integer',
-        'access_hash' => 'integer',
         'last_message_id' => 'integer',
-        'last_scanned_message_id' => 'integer',
-        'last_parsed_message_id' => 'integer',
+        'last_read_message_id' => 'integer',
         'unread_count' => 'integer',
         'participants_count' => 'integer',
         'last_message_date' => 'datetime',
         'excluded_at' => 'datetime',
-        'last_scanned_at' => 'datetime',
         'photo' => 'array',
-        'is_pinned' => 'boolean',
         'is_excluded' => 'boolean',
         'exclude_count' => 'integer',
     ];
 
+    // Связи
     public function account(): BelongsTo
     {
         return $this->belongsTo(TelegramAccount::class, 'account_id');
@@ -74,11 +65,25 @@ class TelegramChat extends Model
         return $this->hasMany(TelegramPost::class, 'chat_id', 'id');
     }
 
-    public function userComments(): HasMany
+    // Методы для непрочитанных
+    public function unreadMessages()
     {
-        return $this->hasMany(TelegramUserComment::class, 'chat_id', 'id');
+        return $this->messages()
+            ->where('out', false)
+            ->where('message_id', '>', $this->last_read_message_id ?? 0);
     }
 
+    public function unreadCount(): int
+    {
+        return $this->unreadMessages()->count();
+    }
+
+    public function setLastRead(int $messageId): void
+    {
+        $this->update(['last_read_message_id' => $messageId]);
+    }
+
+    // Методы для исключения
     public function isChannel(): bool
     {
         return in_array($this->type, ['channel', 'supergroup']);
@@ -113,25 +118,13 @@ class TelegramChat extends Model
         ]);
     }
 
-    public function scopeExcluded($query)
-    {
-        return $query->where('is_excluded', true);
-    }
-
     public function scopeActive($query)
     {
         return $query->where('is_excluded', false);
     }
 
-    public function scopeOrdered($query, string $sort = 'default')
+    public function scopeExcluded($query)
     {
-        switch ($sort) {
-            case 'alphabet':
-                return $query->orderBy('title');
-            case 'excluded':
-                return $query->orderBy('is_excluded')->orderBy('title');
-            default:
-                return $query->orderBy('is_excluded')->orderBy('last_message_date', 'desc');
-        }
+        return $query->where('is_excluded', true);
     }
 }

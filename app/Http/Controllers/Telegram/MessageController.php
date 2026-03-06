@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Telegram;
 
 use App\Http\Controllers\Controller;
+use App\Models\TelegramAccount;
 use App\Services\Telegram\GatewayService;
 use App\Models\TelegramChat;
 use App\Models\TelegramMessage;
@@ -18,9 +19,6 @@ class MessageController extends Controller
         $this->gateway = $gateway;
     }
 
-    /**
-     * Отправка сообщения (заглушка - Gateway пока не умеет)
-     */
     public function send(Request $request, int $chatId)
     {
         $request->validate([
@@ -28,13 +26,31 @@ class MessageController extends Controller
             'reply_to' => 'nullable|integer',
         ]);
 
-        // TODO: добавить отправку в Gateway
-        Log::info('📤 Отправка сообщения (заглушка)', [
-            'chat_id' => $chatId,
-            'message' => $request->message,
-            'reply_to' => $request->reply_to
-        ]);
+        $chat = TelegramChat::findOrFail($chatId);
 
-        return redirect()->back()->with('info', 'Отправка сообщений временно недоступна');
+        // Получаем аккаунт для from_id
+        $account = TelegramAccount::where('status', 'connected')->first();
+
+        $result = $this->gateway->sendMessage($chatId, $request->message, $request->reply_to);
+
+        if (($result['status'] ?? '') === 'ok' && isset($result['message_id'])) {
+            // Сохраняем отправленное сообщение в БД
+            TelegramMessage::create([
+                'chat_id' => $chatId,
+                'message_id' => $result['message_id'],
+                'from_id' => $account?->tg_id ?? 0,
+                'date' => now(),
+                'text' => $request->message,
+                'reply_to_msg_id' => $request->reply_to,
+                'out' => true,
+                'has_media' => false,
+                'media_type' => null,
+                'processed' => false,
+            ]);
+
+            return redirect()->back()->with('success', 'Сообщение отправлено');
+        }
+
+        return redirect()->back()->with('error', 'Ошибка отправки: ' . ($result['message'] ?? 'Unknown error'));
     }
 }

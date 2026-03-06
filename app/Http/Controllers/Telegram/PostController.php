@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Telegram;
 use App\Http\Controllers\Controller;
 use App\Services\Telegram\GatewayService;
 use App\Models\TelegramChat;
+use App\Models\TelegramPost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -17,13 +18,10 @@ class PostController extends Controller
         $this->gateway = $gateway;
     }
 
-    /**
-     * Форма создания поста
-     */
     public function create(int $chatId)
     {
         $chat = TelegramChat::findOrFail($chatId);
-        
+
         if (!$chat->isChannel()) {
             return redirect()->back()->with('error', 'Посты можно создавать только в каналах');
         }
@@ -31,26 +29,29 @@ class PostController extends Controller
         return view('telegram.posts.create', ['chat' => $chat]);
     }
 
-    /**
-     * Сохранение поста (заглушка)
-     */
     public function store(Request $request, int $chatId)
     {
-        // TODO: добавить создание поста в Gateway
-        Log::info('📝 Создание поста (заглушка)', [
-            'chat_id' => $chatId,
-            'content' => $request->content
+        $request->validate([
+            'content' => 'required|string',
         ]);
 
-        return redirect()->route('telegram.chat.show', $chatId)
-            ->with('info', 'Создание постов временно недоступно');
-    }
+        $chat = TelegramChat::findOrFail($chatId);
 
-    /**
-     * Форма редактирования поста (заглушка)
-     */
-    public function edit(int $chatId, int $messageId)
-    {
-        return redirect()->back()->with('info', 'Редактирование временно недоступно');
+        $result = $this->gateway->createPost($chatId, $request->content);
+
+        if (($result['status'] ?? '') === 'ok' && isset($result['message_id'])) {
+            TelegramPost::create([
+                'chat_id' => $chatId,
+                'message_id' => $result['message_id'],
+                'content' => $request->content,
+                'posted_at' => now(),
+            ]);
+
+            return redirect()->route('telegram.chat.show', $chatId)
+                ->with('success', 'Пост создан');
+        }
+
+        return redirect()->back()
+            ->with('error', 'Ошибка создания поста');
     }
 }
