@@ -63,7 +63,7 @@ class TelegramMessage extends Model
             return null;
         }
         
-        return Storage::url($this->downloaded_file);
+        return asset('storage/'.$this->downloaded_file);
     }
 
 

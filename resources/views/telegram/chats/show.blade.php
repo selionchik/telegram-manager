@@ -49,7 +49,7 @@
                             @endif
 
                             <p class="mb-1">{{ $msg->text }}</p>
-@dump($msg->media_type )
+                            {{-- @dump($msg->media_type ) --}}
                             <!-- Медиа с плейсхолдером -->
                             @if ($msg->has_media)
                                 <div class="mt-2 media-container" data-message-id="{{ $msg->message_id }}"
@@ -274,7 +274,7 @@
                     // Всегда загружаем свежие комментарии
                     commentsList.html(
                         '<div class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Загрузка...</span></div></div>'
-                        );
+                    );
 
                     $.get(url, function(data) {
                         commentsList.empty();
@@ -282,7 +282,7 @@
                         if (data.comments.length === 0) {
                             commentsList.html(
                                 '<div class="text-muted text-center py-2">Нет комментариев</div>'
-                                );
+                            );
                             return;
                         }
 
@@ -300,7 +300,7 @@
                     }).fail(function() {
                         commentsList.html(
                             '<div class="text-danger text-center py-2">Ошибка загрузки комментариев</div>'
-                            );
+                        );
                     });
 
                 } else {
@@ -312,145 +312,426 @@
         });
 
         // Функция скачивания изображения (исправлена - передаём chatId и messageId)
-        function downloadImage(chatId, messageId, element) {
-            const container = $(element).closest('.media-container');
-            const placeholder = $(element);
-            const spinner = placeholder.find('.spinner-border');
+        // Функция скачивания изображения
+        // function downloadImage(chatId, messageId, element) {
+        //     const container = $(element).closest('.media-container');
+        //     const placeholder = $(element);
+        //     const spinner = placeholder.find('.spinner-border');
 
-            placeholder.find('i, span').hide();
-            spinner.removeClass('d-none');
+        //     // Скрываем иконку и показываем спиннер
+        //     placeholder.find('i, span').hide();
+        //     spinner.removeClass('d-none');
 
-            // Добавляем текстовое уведомление
-            const statusText = $('<div class="text-muted small mt-1">Подключение к серверу...</div>');
-            placeholder.append(statusText);
+        //     // Создаем контейнер для прогресса, если его нет
+        //     let progressContainer = container.find('.download-progress');
+        //     if (progressContainer.length === 0) {
+        //         progressContainer = $('<div class="download-progress mt-2"></div>');
+        //         container.append(progressContainer);
+        //     }
+        //     progressContainer.html('<div class="progress"><div class="progress-bar" style="width:0%">0%</div></div>');
+        //     const progressBar = progressContainer.find('.progress-bar');
 
-            const progressContainer = $('<div class="progress mt-2" style="height: 20px; display: none;">' +
-                '<div class="progress-bar progress-bar-striped progress-bar-animated" ' +
-                'role="progressbar" style="width: 0%">0%</div></div>');
+        //     // URL для запроса на скачивание (к вашему контроллеру)
+        //     const downloadUrl = '{{ route('telegram.download', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
 
-            const startTime = Date.now();
-            const waitingTimer = setInterval(() => {
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
-                if (elapsed < 30) {
-                    statusText.text(`Ожидание ответа (${elapsed} сек)...`);
-                } else {
-                    statusText.text(`Соединение устанавливается... (${elapsed} сек)`).addClass('text-warning');
-                }
-            }, 1000);
+        //     // 1. Запускаем скачивание в фоне (fetch без ожидания ответа)
+        //     fetch(downloadUrl, {
+        //         method: 'POST',
+        //         headers: {
+        //             'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        //         }
+        //         // Не ждем тело ответа, нам нужен только запуск процесса
+        //     }).catch(error => console.error('Download fetch error:', error));
 
-            // ИСПРАВЛЕННЫЙ URL с chatId и messageId
-            const downloadUrl = '{{ route('telegram.download', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
-                .replace(':chatId', chatId)
-                .replace(':messageId', messageId);
+        //     // 2. Запускаем опрос прогресса
+        //     // Опрашиваем прогресс
+        //     const progressUrl =
+        //         '{{ route('telegram.download.progress', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
 
-            console.log('Downloading from:', downloadUrl);
+        //     const progressInterval = setInterval(() => {
+        //         $.get(progressUrl, function(data) {
+        //             if (data.progress !== undefined) {
+        //                 progressBar.css('width', data.progress + '%').text(data.progress + '%');
+        //             }
 
-            $.ajax({
-                url: downloadUrl,
-                method: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}'
-                },
-                dataType: 'json',
-                success: function(data) {
-                    clearInterval(waitingTimer);
-                    statusText.remove();
-                    spinner.addClass('d-none');
+        //             if (data.done) {
+        //                 clearInterval(progressInterval);
+        //                 progressContainer.remove();
+        //                 spinner.addClass('d-none');
 
-                    if (data.success) {
-                        if (data.cached) {
-                            // Файл уже скачан
-                            if (data.type === 'video') {
-                                container.html(`
-                            <video src="${data.url}" controls 
-                                class="img-fluid rounded-3" 
-                                style="max-height: 200px;">
-                                Ваш браузер не поддерживает видео.
-                            </video>
-                        `);
-                            } else if (data.type === 'audio') {
-                                container.html(`
-                            <audio src="${data.url}" controls 
-                                class="w-100">
-                                Ваш браузер не поддерживает аудио.
-                            </audio>
-                        `);
-                            } else {
-                                container.html(
-                                    '<img src="' + data.url + '" ' +
-                                    'class="img-fluid rounded-3 loaded-image" ' +
-                                    'style="max-height: 200px; cursor: pointer;" ' +
-                                    'alt="Изображение" ' +
-                                    'onclick="openImage(\'' + data.url + '\')">'
-                                );
-                            }
-                        } else {
-                            // Новый файл - показываем прогресс
-                            placeholder.after(progressContainer);
-                            progressContainer.show();
+        //                 const imgHtml =
+        //                     `<img src="${data.url}" class="img-fluid rounded-3 loaded-image" style="max-height: 200px; cursor: pointer;" alt="Изображение" onclick="openImage('${data.url}')">`;
+        //                 container.html(imgHtml);
+        //             }
+        //         }).fail(function() {
+        //             console.log('Progress poll failed, retrying...');
+        //         });
+        //     }, 800); // Опрашиваем каждые 800 мс
+        // }
+        // function downloadImage(chatId, messageId, element) {
+        //     const container = $(element).closest('.media-container');
+        //     const placeholder = $(element);
+        //     const spinner = placeholder.find('.spinner-border');
 
-                            let percent = 0;
-                            const interval = setInterval(() => {
-                                percent += Math.random() * 15;
-                                if (percent >= 100) {
-                                    percent = 100;
-                                    clearInterval(interval);
+        //     // Скрываем иконку и показываем спиннер
+        //     placeholder.find('i, span').hide();
+        //     spinner.removeClass('d-none');
 
-                                    setTimeout(() => {
-                                        progressContainer.remove();
-                                        if (data.type === 'video') {
-                                            container.html(`
-                                        <video src="${data.url}" controls 
-                                            class="img-fluid rounded-3" 
-                                            style="max-height: 200px;">
-                                            Ваш браузер не поддерживает видео.
-                                        </video>
-                                    `);
-                                        } else if (data.type === 'audio') {
-                                            container.html(`
-                                        <audio src="${data.url}" controls 
-                                            class="w-100">
-                                            Ваш браузер не поддерживает аудио.
-                                        </audio>
-                                    `);
-                                        } else {
-                                            container.html(
-                                                '<img src="' + data.url + '" ' +
-                                                'class="img-fluid rounded-3 loaded-image" ' +
-                                                'style="max-height: 200px; cursor: pointer;" ' +
-                                                'alt="Изображение" ' +
-                                                'onclick="openImage(\'' + data.url + '\')">'
-                                            );
-                                        }
-                                    }, 500);
-                                }
-                                progressContainer.find('.progress-bar')
-                                    .css('width', percent + '%')
-                                    .text(Math.round(percent) + '%');
-                            }, 100);
-                        }
-                    } else {
-                        placeholder.find('i, span').show();
-                        spinner.addClass('d-none');
-                        progressContainer.remove();
-                        alert('Ошибка загрузки: ' + (data.error || 'Неизвестная ошибка'));
-                    }
-                },
-                error: function(xhr, status, error) {
-                    clearInterval(waitingTimer);
-                    statusText.remove();
+        //     // Создаем контейнер для прогресса, если его нет
+        //     let progressContainer = container.find('.download-progress');
+        //     if (progressContainer.length === 0) {
+        //         progressContainer = $('<div class="download-progress mt-2"></div>');
+        //         container.append(progressContainer);
+        //     }
+        //     progressContainer.html('<div class="progress"><div class="progress-bar" style="width:0%">0%</div></div>');
+        //     const progressBar = progressContainer.find('.progress-bar');
 
-                    console.error('Download error:', error);
-                    placeholder.find('i, span').show();
-                    spinner.addClass('d-none');
-                    progressContainer.remove();
+        //     // URL для запроса на скачивание
+        //     const downloadUrl = '{{ route('telegram.download', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
 
-                    const elapsed = Math.round((Date.now() - startTime) / 1000);
-                    alert(`Ошибка соединения через ${elapsed} сек: ` + error);
-                }
-            });
-        }
+        //     console.log(`🚀 [${chatId}/${messageId}] Запуск скачивания: ${downloadUrl}`);
 
+        //     // 1. Запускаем скачивание в фоне
+        //     fetch(downloadUrl, {
+        //         method: 'POST',
+        //         headers: {
+        //             'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        //         }
+        //     })
+        //     .then(response => {
+        //         console.log(`📥 [${chatId}/${messageId}] Ответ получен, статус: ${response.status}`);
+
+        //         // Получаем reader для чтения чанков
+        //         const reader = response.body.getReader();
+        //         const contentLength = response.headers.get('Content-Length');
+        //         const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+        //         console.log(`📊 [${chatId}/${messageId}] Content-Length: ${total} байт`);
+
+        //         let receivedLength = 0;
+        //         let chunkCount = 0;
+
+        //         function readChunk() {
+        //             reader.read().then(({ done, value }) => {
+        //                 if (done) {
+        //                     console.log(`✅ [${chatId}/${messageId}] Загрузка завершена, всего чанков: ${chunkCount}, получено байт: ${receivedLength}`);
+        //                     return;
+        //                 }
+
+        //                 chunkCount++;
+        //                 receivedLength += value.length;
+
+        //                 const percent = total > 0 ? Math.round((receivedLength / total) * 100) : 0;
+        //                 console.log(`📦 [${chatId}/${messageId}] Чанк #${chunkCount}: +${value.length} байт, всего ${receivedLength}/${total} (${percent}%)`);
+
+        //                 readChunk();
+        //             }).catch(error => {
+        //                 console.error(`❌ [${chatId}/${messageId}] Ошибка чтения чанка:`, error);
+        //             });
+        //         }
+
+        //         readChunk();
+        //     })
+        //     .catch(error => console.error('❌ Download fetch error:', error));
+
+        //     // 2. Запускаем опрос прогресса
+        //     const progressUrl = '{{ route('telegram.download.progress', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
+
+        //     console.log(`🔄 [${chatId}/${messageId}] Начинаем опрос прогресса: ${progressUrl}`);
+
+        //     const progressInterval = setInterval(() => {
+        //         $.get(progressUrl, function(data) {
+        //             if (data.progress !== undefined) {
+        //                 console.log(`📈 [${chatId}/${messageId}] Прогресс от сервера: ${data.progress}%`);
+        //                 progressBar.css('width', data.progress + '%').text(data.progress + '%');
+        //             }
+
+        //             if (data.done) {
+        //                 console.log(`🎉 [${chatId}/${messageId}] Загрузка завершена, URL: ${data.url}`);
+        //                 clearInterval(progressInterval);
+        //                 progressContainer.remove();
+        //                 spinner.addClass('d-none');
+
+        //                 const imgHtml = `<img src="${data.url}" class="img-fluid rounded-3 loaded-image" style="max-height: 200px; cursor: pointer;" alt="Изображение" onclick="openImage('${data.url}')">`;
+        //                 container.html(imgHtml);
+        //             }
+        //         }).fail(function(xhr, status, error) {
+        //             console.log(`⚠️ [${chatId}/${messageId}] Ошибка опроса прогресса:`, { status, error });
+        //         });
+        //     }, 800);
+        // }
+
+        // //рабочий костыль
+        // function downloadImage(chatId, messageId, element) {
+        //     const container = $(element).closest('.media-container');
+        //     const placeholder = $(element);
+        //     const spinner = placeholder.find('.spinner-border');
+
+        //     placeholder.find('i, span').hide();
+        //     spinner.removeClass('d-none');
+
+        //     // Создаем контейнер для прогресса
+        //     let progressContainer = container.find('.download-progress');
+        //     if (progressContainer.length === 0) {
+        //         progressContainer = $('<div class="download-progress mt-2"></div>');
+        //         container.append(progressContainer);
+        //     }
+        //     progressContainer.html('<div class="progress"><div class="progress-bar" style="width:0%">0%</div></div>');
+        //     const progressBar = progressContainer.find('.progress-bar');
+
+        //     const sizeUrl = '{{ route('telegram.download.size', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
+
+        //     const downloadUrl = '{{ route('telegram.download', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
+
+        //     const progressUrl =
+        //         '{{ route('telegram.download.progress', ['chatId' => ':chatId', 'messageId' => ':messageId']) }}'
+        //         .replace(':chatId', chatId)
+        //         .replace(':messageId', messageId);
+
+        //     console.log(`🚀 [${chatId}/${messageId}] Запрашиваем размер...`);
+
+        //     // Сначала узнаём размер
+        //     $.get(sizeUrl, function(sizeData) {
+        //         const totalSize = sizeData.size;
+        //         const chunkSize = sizeData.chunkSize;
+        //         console.log(`📊 [${chatId}/${messageId}] Размер файла: ${totalSize} байт`);
+
+        //         // Запускаем скачивание
+        //         console.log(`📥 [${chatId}/${messageId}] Запуск скачивания`);
+        //         fetch(downloadUrl, {
+        //             method: 'POST',
+        //             headers: {
+        //                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        //             }
+        //         }).catch(error => console.error('Download error:', error));
+
+        //         let step=1;
+        //         // Опрашиваем прогресс
+        //         const progressInterval = setInterval(() => {
+        //             $.get(progressUrl, function(data) {
+        //                 // let percent = Math.round((chunkSize / totalSize) * 100 * step);
+        //                     // progressBar.css('width', percent + '%').text(percent + '%');
+        //                     // step++;
+        //                 if (data.progress !== undefined) {
+        //                     progressBar.css('width', data.progress + '%').text(data.progress + '%');
+        //                     console.log(`📈 [${chatId}/${messageId}] Прогресс: ${data.progress}%`);
+        //                 }
+
+        //                 if (data.done) {
+        //                     clearInterval(progressInterval);
+        //                     progressContainer.remove();
+        //                     spinner.addClass('d-none');
+
+        //                     const imgHtml =
+        //                         `<img src="${data.url}" class="img-fluid rounded-3 loaded-image" style="max-height: 200px; cursor: pointer;" alt="Изображение" onclick="openImage('${data.url}')">`;
+        //                     container.html(imgHtml);
+        //                     console.log(`🎉 [${chatId}/${messageId}] Готово`);
+        //                 }
+        //             }).fail(() => console.log('Progress poll failed'));
+        //         }, 500);
+
+        //     }).fail(function() {
+        //         console.error('❌ Не удалось получить размер файла');
+        //         // fallback — запускаем без размера
+        //         fetch(downloadUrl, {
+        //                 method: 'POST',
+        //                 headers: {
+        //                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        //                 }
+        //             })
+        //             .catch(error => console.error('Download error:', error));
+
+        //         // тот же опрос прогресса
+        //         const progressInterval = setInterval(() => {
+        //             $.get(progressUrl, function(data) {
+        //                 if (data.progress !== undefined) {
+        //                     progressBar.css('width', data.progress + '%').text(data.progress + '%');
+        //                 }
+        //                 if (data.done) {
+        //                     clearInterval(progressInterval);
+        //                     progressContainer.remove();
+        //                     spinner.addClass('d-none');
+        //                     container.html(
+        //                         `<img src="${data.url}" class="img-fluid rounded-3 loaded-image" style="max-height: 200px; cursor: pointer;" alt="Изображение" onclick="openImage('${data.url}')">`
+        //                         );
+        //                 }
+        //             }).fail(() => {});
+        //         }, 500);
+        //     });
+        // }
+//sse
+// function downloadImage(chatId, messageId, element) {
+//     const container = $(element).closest('.media-container');
+//     const placeholder = $(element);
+//     const spinner = placeholder.find('.spinner-border');
+    
+//     placeholder.find('i, span').hide();
+//     spinner.removeClass('d-none');
+    
+//     // Создаем контейнер для прогресса
+//     let progressContainer = container.find('.download-progress');
+//     if (progressContainer.length === 0) {
+//         progressContainer = $('<div class="download-progress mt-2"></div>');
+//         container.append(progressContainer);
+//     }
+//     progressContainer.html('<div class="progress"><div class="progress-bar" style="width:0%">0%</div></div>');
+//     const progressBar = progressContainer.find('.progress-bar');
+    
+//     const sseUrl = '{{ route("telegram.download.sse", ["chatId" => ":chatId", "messageId" => ":messageId"]) }}'
+//         .replace(':chatId', chatId)
+//         .replace(':messageId', messageId);
+    
+//     console.log(`🚀 [${chatId}/${messageId}] Подключаемся к SSE`);
+    
+//     // Подключаемся к SSE (этот запрос сам запустит скачивание)
+//     const eventSource = new EventSource(sseUrl);
+    
+//     eventSource.addEventListener('progress', function(e) {
+//         const data = JSON.parse(e.data);
+//         progressBar.css('width', data.percent + '%').text(data.percent + '%');
+//         console.log(`📈 [${chatId}/${messageId}] Прогресс: ${data.percent}% (${data.downloaded}/${data.total})`);
+//     });
+    
+//     eventSource.addEventListener('complete', function(e) {
+//         const data = JSON.parse(e.data);
+//         console.log(`🎉 [${chatId}/${messageId}] Готово`);
+        
+//         eventSource.close();
+//         progressContainer.remove();
+//         spinner.addClass('d-none');
+        
+//         const imgHtml = `<img src="${data.url}" class="img-fluid rounded-3 loaded-image" style="max-height: 200px; cursor: pointer;" alt="Изображение" onclick="openImage('${data.url}')">`;
+//         container.html(imgHtml);
+//     });
+    
+//     eventSource.addEventListener('error', function(e) {
+//         const data = JSON.parse(e.data);
+//         console.error('❌ SSE error:', data.error);
+//         spinner.addClass('d-none');
+//         placeholder.find('i, span').show();
+//         alert('Ошибка: ' + data.error);
+//         eventSource.close();
+//     });
+    
+//     eventSource.onerror = function(e) {
+//         console.error('SSE connection error:', e);
+//         // Браузер сам переподключится 
+//     };
+// }
+
+function downloadImage(chatId, messageId, element) {
+    const container = $(element).closest('.media-container');
+    const placeholder = $(element);
+    const spinner = placeholder.find('.spinner-border');
+    
+    placeholder.find('i, span').hide();
+    spinner.removeClass('d-none');
+    
+    // Создаем контейнер для прогресса
+    let progressContainer = container.find('.download-progress');
+    if (progressContainer.length === 0) {
+        progressContainer = $('<div class="download-progress mt-2"></div>');
+        container.append(progressContainer);
+    }
+    progressContainer.html('<div class="progress"><div class="progress-bar" style="width:0%">0%</div></div>');
+    const progressBar = progressContainer.find('.progress-bar');
+    
+    const sizeUrl = '{{ route("telegram.download.size", ["chatId" => ":chatId", "messageId" => ":messageId"]) }}'
+        .replace(':chatId', chatId)
+        .replace(':messageId', messageId);
+    
+    const sseUrl = '{{ route("telegram.download.sse", ["chatId" => ":chatId", "messageId" => ":messageId"]) }}'
+        .replace(':chatId', chatId)
+        .replace(':messageId', messageId);
+    
+    // Запрашиваем размер
+    $.get(sizeUrl, function(sizeData) {
+        const totalSize = sizeData.size;
+        
+        // Расчет ожидаемого времени загрузки (примерно 1 МБ/сек)
+        const estimatedTimeMs = Math.min(30000, Math.max(2000, totalSize / 1000)); // от 2 до 30 секунд
+        const steps = Math.floor(estimatedTimeMs / 300); // ~3 шага в секунду
+        const stepPercent = Math.min(5, Math.floor(90 / steps) || 1);
+        
+        console.log(`🚀 [${chatId}/${messageId}] Размер: ${totalSize} байт, ожидаемое время: ${Math.round(estimatedTimeMs/1000)}с, шаг: ${stepPercent}%`);
+        
+        let simulatedPercent = 0;
+        let realDataStarted = false;
+        let finalUrl = null;
+        
+        // Имитация с реалистичной скоростью
+        const simulationInterval = setInterval(() => {
+            if (!realDataStarted && simulatedPercent < 90) {
+                simulatedPercent = Math.min(simulatedPercent + stepPercent, 90);
+                progressBar.css('width', simulatedPercent + '%').text(Math.round(simulatedPercent) + '%');
+                console.log(`📊 [${chatId}/${messageId}] Имитация: ${Math.round(simulatedPercent)}%`);
+            }
+        }, 300); // Каждые 300 мс
+        
+        // SSE соединение
+        const eventSource = new EventSource(sseUrl);
+        
+        eventSource.addEventListener('progress', function(e) {
+            const data = JSON.parse(e.data);
+            
+            if (data.percent > 0 && !realDataStarted) {
+                realDataStarted = true;
+                clearInterval(simulationInterval);
+                console.log(`✅ [${chatId}/${messageId}] Начало реальной загрузки на ${data.percent}%`);
+            }
+            
+            if (realDataStarted) {
+                progressBar.css('width', data.percent + '%').text(data.percent + '%');
+            }
+        });
+        
+        eventSource.addEventListener('complete', function(e) {
+            const data = JSON.parse(e.data);
+            finalUrl = data.url;
+            
+            console.log(`🎉 [${chatId}/${messageId}] Готово`);
+            
+            eventSource.close();
+            clearInterval(simulationInterval);
+            progressContainer.remove();
+            spinner.addClass('d-none');
+            
+            if (finalUrl) {
+                container.html(`<img src="${finalUrl}" class="img-fluid rounded-3 loaded-image" style="max-height: 200px; cursor: pointer;" alt="Изображение" onclick="openImage('${finalUrl}')">`);
+            } else {
+                placeholder.find('i, span').show();
+            }
+        });
+        
+        eventSource.onerror = function() {
+            // Продолжаем имитацию
+        };
+        
+    }).fail(function() {
+        console.error('Size request failed');
+        fetch(sseUrl).catch(console.error);
+    });
+}
+// Вспомогательная функция для форматирования байтов
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
         // Функция открытия изображения
         function openImage(url) {
             window.open(url, '_blank');
